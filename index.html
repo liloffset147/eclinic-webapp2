@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eClinic GH — Web App (HTML/CSS/JS)</title>
+  <style>
+    :root{--accent:#0b6efd;--muted:#666}
+    *{box-sizing:border-box;font-family:Inter, system-ui, Arial, sans-serif}
+    body{margin:0;background:#f5f7fb;color:#1a1a1a}
+    header{background:white;box-shadow:0 1px 6px rgba(10,10,10,.06);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+    header h1{margin:0;font-size:18px}
+    .container{max-width:1000px;margin:18px auto;padding:12px}
+    .grid{display:grid;grid-template-columns:1fr 320px;gap:18px}
+    .card{background:white;border-radius:12px;padding:14px;box-shadow:0 4px 18px rgba(11,20,40,.06)}
+    .form-row{display:flex;gap:8px}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input,select,textarea,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #e6eef8}
+    button{cursor:pointer;background:var(--accent);color:white;border:none}
+    .muted{color:var(--muted);font-size:13px}
+    .appointments-list{display:flex;flex-direction:column;gap:8px}
+    .appt{border-left:4px solid #e9eefc;padding:10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center}
+    .appt .meta{font-size:13px;color:var(--muted)}
+    .small{font-size:13px}
+    .top-actions{display:flex;gap:8px;align-items:center}
+    .auth-actions{display:flex;gap:8px}
+    .nav{display:flex;gap:12px;align-items:center}
+    .chat-window{height:300px;overflow:auto;border-radius:8px;padding:8px;border:1px solid #eef5ff;background:#fbfdff}
+    .msg{margin:6px 0;padding:8px;border-radius:8px;max-width:75%}
+    .msg.me{background:#e6f0ff;margin-left:auto}
+    .msg.other{background:#fff}
+    footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+    @media(max-width:880px){
+      .grid{grid-template-columns:1fr;}
+      .container{padding:8px}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>eClinic GH</h1>
+    <div class="nav">
+      <div id="userEmail" class="muted small">Guest Mode</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="grid">
+      <section>
+        <div class="card">
+          <h2>Book an Appointment</h2>
+          <p class="muted">Create, edit or delete your appointments. (No sign in required in this demo)</p>
+
+          <form id="apptForm" style="margin-top:12px">
+            <div>
+              <label>Doctor</label>
+              <select id="doctor">
+                <option>Dr. Ama Mensah — General Practitioner</option>
+                <option>Dr. John K. — Pediatrician</option>
+                <option>Dr. Fatima — Gynecology</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <div style="flex:1">
+                <label>Date</label>
+                <input id="date" type="date" required />
+              </div>
+              <div style="width:140px">
+                <label>Time</label>
+                <input id="time" type="time" required />
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <label>Reason / Notes</label>
+              <textarea id="reason" rows="2" placeholder="Short description"></textarea>
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <button type="submit">Save Appointment</button>
+              <button id="btnClear" type="button">Clear</button>
+            </div>
+          </form>
+
+          <hr style="margin:12px 0" />
+
+          <h3>Your Appointments</h3>
+          <div id="appts" class="appointments-list muted small">Loading appointments...</div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Doctor Chat</h3>
+          <div id="chatArea">
+            <div class="muted small">Select an appointment to open chat.</div>
+          </div>
+        </div>
+
+      </section>
+
+      <aside>
+        <div class="card">
+          <h3>Quick Health Tips</h3>
+          <div id="tip" class="muted small">Loading tip...</div>
+          <button id="btnNewTip" style="margin-top:8px">Get another tip</button>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>How it works</h3>
+          <ol class="muted small">
+            <li>No authentication required (demo mode)</li>
+            <li>Appointments are stored in your browser (localStorage)</li>
+            <li>Chat is simulated and not persistent</li>
+            <li>Health tips from a public API</li>
+          </ol>
+        </div>
+
+      </aside>
+    </div>
+
+    <footer>
+      eClinic GH — Student project 
+    </footer>
+  </main>
+
+  <script>
+    // DOM Elements
+    const apptForm = document.getElementById('apptForm');
+    const apptsDiv = document.getElementById('appts');
+    const doctorSelect = document.getElementById('doctor');
+    const dateInput = document.getElementById('date');
+    const timeInput = document.getElementById('time');
+    const reasonInput = document.getElementById('reason');
+    const btnClear = document.getElementById('btnClear');
+    const chatArea = document.getElementById('chatArea');
+    const tipDiv = document.getElementById('tip');
+    const btnNewTip = document.getElementById('btnNewTip');
+
+    let editingApptId = null;
+    let appointments = JSON.parse(localStorage.getItem('appointments') || '[]');
+    let chats = JSON.parse(localStorage.getItem('chats') || '{}');
+
+    function saveAppointments() {
+      localStorage.setItem('appointments', JSON.stringify(appointments));
+    }
+    function saveChats() {
+      localStorage.setItem('chats', JSON.stringify(chats));
+    }
+
+    function renderAppointments() {
+      if (!appointments.length) {
+        apptsDiv.innerHTML = '<div class="muted small">No appointments yet.</div>';
+        return;
+      }
+      apptsDiv.innerHTML = '';
+      appointments.forEach((a, idx) => {
+        const apptEl = document.createElement('div');
+        apptEl.className = 'appt';
+        apptEl.innerHTML = `
+          <div>
+            <div><strong>${a.doctor}</strong></div>
+            <div class="meta">${a.date} • ${a.time} — ${a.status || 'pending'}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="small" data-id="${idx}" data-act="chat">Chat</button>
+            <button class="small" data-id="${idx}" data-act="edit">Edit</button>
+            <button class="small" data-id="${idx}" data-act="delete">Delete</button>
+          </div>
+        `;
+        apptsDiv.appendChild(apptEl);
+      });
+      apptsDiv.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = parseInt(btn.dataset.id);
+          const act = btn.dataset.act;
+          if (act === 'delete') {
+            if (confirm('Delete appointment?')) {
+              appointments.splice(id, 1);
+              saveAppointments();
+              renderAppointments();
+              chatArea.innerHTML = '<div class="muted small">Select an appointment to open chat.</div>';
+            }
+          } else if (act === 'edit') {
+            const d = appointments[id];
+            doctorSelect.value = d.doctor;
+            dateInput.value = d.date;
+            timeInput.value = d.time;
+            reasonInput.value = d.reason;
+            editingApptId = id;
+          } else if (act === 'chat') {
+            openChatForAppointment(id);
+          }
+        });
+      });
+    }
+
+    apptForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = {
+        doctor: doctorSelect.value,
+        date: dateInput.value,
+        time: timeInput.value,
+        reason: reasonInput.value,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      if (editingApptId !== null) {
+        appointments[editingApptId] = data;
+        editingApptId = null;
+      } else {
+        appointments.unshift(data);
+      }
+      saveAppointments();
+      apptForm.reset();
+      renderAppointments();
+    });
+
+    btnClear.addEventListener('click', () => {
+      apptForm.reset();
+      editingApptId = null;
+    });
+
+    function openChatForAppointment(apptIdx) {
+      const apptKey = `appt_${apptIdx}`;
+      if (!chats[apptKey]) chats[apptKey] = [];
+      chatArea.innerHTML = `
+        <div id="chatBox">
+          <div id="messages" class="chat-window"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="msgInput" placeholder="Type message to doctor..." />
+            <button id="sendMsg">Send</button>
+          </div>
+        </div>
+      `;
+      const messagesDiv = document.getElementById('messages');
+      const msgInput = document.getElementById('msgInput');
+      const sendMsgBtn = document.getElementById('sendMsg');
+
+      function renderMessages() {
+        messagesDiv.innerHTML = '';
+        if (!chats[apptKey].length) {
+          messagesDiv.innerHTML = '<div class="muted small">No messages yet. Use chat to consult the doctor.</div>';
+          return;
+        }
+        chats[apptKey].forEach(m => {
+          const el = document.createElement('div');
+          el.className = 'msg ' + (m.sender === 'me' ? 'me' : 'other');
+          el.innerHTML = `<div class="small"><strong>${m.sender === 'me' ? 'You' : 'Doctor'}</strong></div>
+            <div>${m.text}</div>
+            <div class="meta small">${new Date(m.createdAt).toLocaleString()}</div>`;
+          messagesDiv.appendChild(el);
+        });
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      renderMessages();
+
+      sendMsgBtn.addEventListener('click', () => {
+        const text = msgInput.value.trim();
+        if (!text) return;
+        chats[apptKey].push({
+          text,
+          sender: 'me',
+          createdAt: new Date().toISOString()
+        });
+        // Simulate doctor reply
+        setTimeout(() => {
+          chats[apptKey].push({
+            text: "Thank you for your message. We'll see you at your appointment.",
+            sender: 'other',
+            createdAt: new Date().toISOString()
+          });
+          saveChats();
+          renderMessages();
+        }, 1000);
+        saveChats();
+        msgInput.value = '';
+        renderMessages();
+      });
+    }
+
+    // Health tip API
+    async function fetchHealthTip() {
+      try {
+        tipDiv.textContent = "Loading tip...";
+        const res = await fetch('https://api.adviceslip.com/advice');
+        const j = await res.json();
+        const tip = j?.slip?.advice || 'Stay hydrated and get regular checkups.';
+        tipDiv.textContent = tip;
+      } catch (err) {
+        tipDiv.textContent = 'Could not load tip.';
+      }
+    }
+    btnNewTip.addEventListener('click', fetchHealthTip);
+    fetchHealthTip();
+
+    // Pre-fill today's date
+    (function preset() {
+      const today = new Date().toISOString().slice(0, 10);
+      dateInput.value = today;
+    })();
+
+    // Initial render
+    renderAppointments();
+  </script>
+</body>
+</html>
